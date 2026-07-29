@@ -6,6 +6,9 @@ experiments/**
 tmp/**
 chroma_eval_cache/**
 cleaned_docs_cache/**
+.DS_Store
+chunking/.DS_Store 
+utils/generate_image.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
