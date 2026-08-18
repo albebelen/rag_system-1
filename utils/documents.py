@@ -61,33 +61,7 @@ def make_chunking_document_aware(chunking_function):
             category = doc.metadata.get("category", "")
             next_category = docs[i+1].metadata.get("category", "") if i + 1 < len(docs) else ""
             
-            # --- Context-Aware Whitespace Logic ---
-            if category == "ListItem" and next_category == "ListItem":
-                # Keep lists tightly packed
-                separator = "\n"
-                
-            elif category == "FigureCaption" and next_category in ("Image", "Table"):
-                # Bind captions tightly to the element they precede
-                separator = "\n"
-                
-            elif category in ("Image", "Table") and next_category == "FigureCaption":
-                # Bind captions tightly to the element they follow
-                separator = "\n"
-                
-            elif category == "CodeSnippet" and next_category == "CodeSnippet":
-                # OCR often splits code blocks; glue them back together
-                separator = "\n"
-                
-            elif category in ("Address", "EmailAddress") and next_category in ("Address", "EmailAddress"):
-                # Keep contact blocks together
-                separator = "\n"
-                
-            else:
-                # Titles, NarrativeText, Formulas, and default paragraph breaks
-                # \n\n allows standard chunkers to recognize logical breaks
-                separator = "\n\n"
-            
-            full_text += doc.page_content + separator
+            full_text += doc.page_content + pick_content_separator(category, next_category)
             end_idx = len(full_text)
             
             doc_spans.append((start_idx, end_idx, doc.metadata))
@@ -110,14 +84,8 @@ def make_chunking_document_aware(chunking_function):
                 chunker_meta = chunk_item.metadata
 
             # Find positional overlap
-            chunk_start = full_text.find(chunk_text, search_start)
-            
-            # Fallback if the chunker heavily stripped whitespace
-            if chunk_start == -1: 
-                chunk_start = search_start 
-
-            chunk_end = chunk_start + len(chunk_text)
-            search_start = chunk_start + 1 
+            chunk_start, chunk_end = find_flexible_bounds(chunk_text, full_text, search_start)
+            search_start = chunk_end
 
             # Find overlapping documents
             overlapping_metas = []
@@ -136,10 +104,75 @@ def make_chunking_document_aware(chunking_function):
             final_docs.append(Document(page_content=chunk_text, metadata=merged_meta))
             
         return final_docs
+
+    import re
+
+    def find_flexible_bounds(chunk_text, full_text, search_start=0):
+        """
+        Finds the start and end index of a chunk in the full_text, 
+        even if the chunker modified whitespace, newlines, or stripped edges.
+        """
+        # Try the fast, exact match first
+        exact_idx = full_text.find(chunk_text, search_start)
+        if exact_idx != -1:
+            return exact_idx, exact_idx + len(chunk_text)
+
+        # Fallback: Whitespace-agnostic anchor matching
+        tokens = chunk_text.split()
+        if not tokens:
+            return search_start, search_start
+
+        # Grab up to the first 7 words and last 7 words to create unique anchors
+        start_tokens = tokens[:7]
+        end_tokens = tokens[-7:]
+
+        # \s* matches ANY whitespace (newlines, tabs, spaces, or nothing)
+        start_pattern = r'\s*'.join(re.escape(t) for t in start_tokens)
+        end_pattern = r'\s*'.join(re.escape(t) for t in end_tokens)
+
+        # Find where the chunk actually begins in the original text
+        start_match = re.search(start_pattern, full_text[search_start:])
+        chunk_start = search_start + start_match.start() if start_match else search_start
+
+        # Find where the chunk ends, searching from the start point
+        end_match = re.search(end_pattern, full_text[chunk_start:])
+        chunk_end = chunk_start + end_match.end() if end_match else chunk_start + len(chunk_text)
+
+        return chunk_start, chunk_end
+
     return wrapper
+
+def pick_content_separator(category, next_category):
+    # --- Context-Aware Whitespace Logic ---
+    if category == "ListItem" and next_category == "ListItem":
+        # Keep lists tightly packed
+        return "\n" 
+    elif category == "FigureCaption" and next_category in ("Image", "Table"):
+        # Bind captions tightly to the element they precede
+        return "\n"            
+    elif category in ("Image", "Table") and next_category == "FigureCaption":
+        # Bind captions tightly to the element they follow
+        return  "\n" 
+    elif category == "CodeSnippet" and next_category == "CodeSnippet":
+        # OCR often splits code blocks; glue them back together
+        return "\n" 
+    elif category in ("Address", "EmailAddress") and next_category in ("Address", "EmailAddress"):
+        # Keep contact blocks together
+        return "\n"
+    # Titles, NarrativeText, Formulas, and default paragraph breaks
+    # \n\n allows standard chunkers to recognize logical breaks
+    return "\n\n"
 
 def merge_metadata(metadata_list, blacklist={"detection_class_prob", "coordinates", "category"}):
     merged = {}
+
+    def make_hashable(obj):
+        """Recursively converts dicts and lists into tuples so they can be hashed for O(1) lookups."""
+        if isinstance(obj, dict):
+            return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
+        elif isinstance(obj, list) or isinstance(obj, tuple):
+            return tuple(make_hashable(v) for v in obj)
+        return obj
     
     for meta in metadata_list:
         for k, v in meta.items():
@@ -153,14 +186,21 @@ def merge_metadata(metadata_list, blacklist={"detection_class_prob", "coordinate
                 if current_val == v:
                     continue
                 
-                # Convert both to sets for easy union (handling strings vs lists)
-                current_set = set(current_val) if isinstance(current_val, (list, tuple)) else {current_val}
-                new_set = set(v) if isinstance(v, (list, tuple)) else {v}
+                # Normalize both to lists
+                current_list = list(current_val) if isinstance(current_val, (list, tuple)) else [current_val]
+                new_list = list(v) if isinstance(v, (list, tuple)) else [v]
                 
-                union_set = current_set.union(new_set)
+                # O(1) lookups for deduplication
+                seen = {make_hashable(x) for x in current_list}
+                
+                for item in new_list:
+                    item_signature = make_hashable(item)
+                    if item_signature not in seen:
+                        seen.add(item_signature)
+                        current_list.append(item)
                 
                 # If it's just one item, keep it as a primitive, otherwise list
-                merged[k] = list(union_set) if len(union_set) > 1 else list(union_set)[0]
+                merged[k] = current_list if len(current_list) > 1 else current_list[0]
                 
     return merged
 
@@ -188,3 +228,57 @@ def flatten_metadata_for_chroma(metadata, parent_key=''):
                 items.append((new_key, str(v)))
                 
     return dict(items)
+
+def format_doc_for_llm(doc):
+    """
+    Takes a retrieved Chroma Document, reconstructs flattened JSON-path keys 
+    (like heading_path and payloads), and formats them for the LLM.
+    """
+    import re
+
+    parts = []
+    meta = doc.metadata
+    
+    # Reconstruct the heading_path (if present) from flattened Chroma metadata
+    heading_keys = [k for k in meta.keys() if k.startswith('heading_path[')]
+    heading_keys.sort(key=lambda x: int(re.search(r'\[(\d+)\]', x).group(1)))
+    
+    path_str = ""
+    if heading_keys:
+        path_parts = [str(meta[k]) for k in heading_keys]
+        path_str = " > ".join(path_parts)
+
+    if path_str:
+        parts.append(f"DOCUMENT SECTION: {path_str}")
+
+    # Reconstruct the payloads list of dicts from flattened keys
+    # Finds keys like "payloads[0].type" and "payloads[0].raw_content"
+    payload_keys = [k for k in meta.keys() if k.startswith('payloads[')]
+    
+    payloads_dict = {}
+    for k in payload_keys:
+        # Regex captures the index (e.g., 0) and the sub-key (e.g., "type" or "raw_content")
+        match = re.match(r'payloads\[(\d+)\]\.(.+)', k)
+        if match:
+            idx = int(match.group(1))
+            sub_key = match.group(2)
+            
+            if idx not in payloads_dict:
+                payloads_dict[idx] = {}
+            payloads_dict[idx][sub_key] = meta[k]
+            
+    # Sort by index to maintain the exact original order
+    reconstructed_payloads = [payloads_dict[i] for i in sorted(payloads_dict.keys())]
+
+    # Add the standard text chunk (which includes the LLM-generated summaries)
+    parts.append(doc.page_content)
+
+    # Inject ALL rich payloads safely
+    for p in reconstructed_payloads:
+        p_type = p.get("type", "unknown").upper()
+        p_content = p.get("raw_content", "")
+        
+        parts.append(f"--- FULL {p_type} DATA ---")
+        parts.append(str(p_content))
+
+    return "\n".join(parts)
