@@ -17,7 +17,9 @@ def clean_doc(file_path, is_eng=None):
 
     # to-do: add case for excel/csv 
     if file_path.lower().endswith(('.png', '.jpg', 'jpeg', '.svg')):
-        clean_doc = clean_imageful_doc(file_path)
+        clean_doc = clean_imageful_doc(file_path, is_eng)
+    elif file_path.lower().endswith(('.csv', '.xls', '.xlsx')):
+        clean_doc = clean_dataful_doc(file_path, is_eng)
     else:
         clean_doc = clean_textful_doc(file_path, is_eng)
     
@@ -51,7 +53,6 @@ def clean_textful_doc(file_path, is_eng):
         loader = UnstructuredLoader(
             file_path=file_path,
             strategy="hi_res",
-            # https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html
             languages=['eng' if is_eng else 'ita'],
             skip_headers_and_footers=True, # strips page numbers, repetitive document titles at the top of pages, and legal footers
             # rip images and tables and save them
@@ -68,6 +69,7 @@ def clean_textful_doc(file_path, is_eng):
         logger.info(f"Saved parsed output to {cache_file}")
 
     # Enrich images
+    # todo: add case for excel/csv
     image_docs = [doc for doc in docs if doc.metadata.get("category") in ('Table', 'Image')]
     if image_docs:
         for doc in tqdm(image_docs, desc="Processing extracted images and tables"):
@@ -106,6 +108,8 @@ def clean_imageful_doc(file_path, is_table=False, is_eng=True, cache_path=None):
     """
     import base64
     from langchain_core.messages import HumanMessage
+
+    #todo: caching and hashing
 
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -193,6 +197,52 @@ def clean_imageful_doc(file_path, is_table=False, is_eng=True, cache_path=None):
     logger.warning(f"Vision LLM missed the delimiter for {file_path}. Using fallback parsing.")
     return "Visual data extracted.", vision_text.strip()
 
+def clean_dataful_doc(file_path, is_eng=True):
+    """
+    Accepts a CSV or Excel file, reads it into a DataFrame, and returns a list of LangChain Document objects.
+    """
+    import pandas as pd
+    from langchain_core.messages import HumanMessage
+    from langchain_core.documents import Document
+
+    # step 1: read table and transform into json
+    sheet_df = pd.read_excel(file_path, sheet_name="Sheet1") #todo: make sheet_name dynamic
+    cleaned_df = sheet_df.dropna(how="all").dropna(how="all", axis=1)
+    cleaned_df = cleaned_df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+
+    sheet_json = cleaned_df.to_json(orient="table", indent=4) 
+
+    # step 2: raw representation of table
+    sheet_table = cleaned_df.to_dict(orient="records")
+
+    # step 3: textal representation of table
+    answer_llm = create_model_by_name(model="gemma4:31b-cloud")
+
+    target_lang = "English" if is_eng else "Italian"
+    prompt = """
+                You are an expert data extraction assistant. Analyze the raw table data.
+                You MUST structure your response exactly like this:
+                
+                ---SUMMARY---
+                [Write a short and concise sentence description of what each row table shows.\
+                 The summary MUST be written in {target_lang}]
+                ---PAYLOAD---
+                [Write a perfect, row-by-row Markdown table transcription of all data]
+                """
+    message = HumanMessage(content=prompt)
+    response = answer_llm.invoke([message])
+
+    # todo: save cache of the table representation and raw table for future use
+    doc = Document(
+        page_content=response.content,
+        metadata={
+            "source": file_path,
+            "raw_table": sheet_table,
+            "json_schema": sheet_json # TODO: what would i do with extra reps?
+        }
+    )
+
+    return [doc]
 
 def get_file_hash(file_path):
     """Generates a SHA-256 hash of the file to use as a unique ID."""
