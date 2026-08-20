@@ -68,7 +68,6 @@ chunking_strategies = {
 
 llm_iterator = create_default_ragas_model_iterator()
 embedding_iterator = create_default_embedding_model_iterator()
-current_embedding = next(embedding_iterator)
 
 def retrieve_chunking_dataset(
     experiment_name,
@@ -216,7 +215,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
 
         async def evaluate_ar():
             try:
-                score = await AnswerRelevancy(llm=next(llm_iterator), embeddings=current_embedding).ascore(
+                score = await AnswerRelevancy(llm=next(llm_iterator), embeddings=embedding_iterator).ascore(
                     user_input=row["user_input"],
                     response=row["response"]
                 )
@@ -227,7 +226,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
 
         async def evaluate_ac():
             try:
-                score = await AnswerCorrectness(llm=next(llm_iterator), embeddings=current_embedding).ascore(
+                score = await AnswerCorrectness(llm=next(llm_iterator), embeddings=embedding_iterator).ascore(
                     user_input=row["user_input"],
                     response=row["response"],
                     reference=row["reference"]
@@ -275,7 +274,6 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
         name=experiment_name,
     )
 
-    # df = risultato.to_pandas()
     df = df = pd.DataFrame(risultato)
     logger.info(
         f"context_precision: {df['context_precision'].mean()}"

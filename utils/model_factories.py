@@ -154,7 +154,6 @@ def create_ragas_model(model, provider="openai", **kwargs):
     return llm_factory(model=model, provider=provider, **kwargs)
 
 def create_default_ragas_model_iterator():
-    models = []
     if "GOOGLE_API_KEY" in os.environ:
         logger.info("Running with Gemini as LLM...")
         # TODO: limit gemini concurrency with the _ragas_global_semaphore
@@ -215,65 +214,61 @@ def create_default_ragas_model_iterator():
 
 def create_ragas_embedding_model(model, provider="openai", **kwargs):
     from ragas.embeddings.base import embedding_factory
-
-    #if is_streaming_stdout_enabled:
-    #    # LiteLLM compatible streaming flag
-    #    kwargs["stream"] = True
-
     return embedding_factory(model=model, provider=provider, interface="modern", **kwargs)
 
-def create_default_embedding_model_iterator():
-    models = []
-    if "GOOGLE_API_KEY" in os.environ:
+def create_default_embedding_model_iterator(cloud_enabled=False):
+    if cloud_enabled and "GOOGLE_API_KEY" in os.environ:
         logger.info("Running with Gemini for embeddings...")
         from google import genai
         client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
-        models.append(create_ragas_embedding_model(
-            "embeddings_model_name",
+        return itertools.cycle([
+            create_ragas_embedding_model(
+            embeddings_model_name,
             provider="google",
             client=client
-        ))
+            )
+        ])
     
-    # elif len(ollama_api_keys) > 0:
-    #     logger.info(f"Running with Ollama Cloud ({len(ollama_api_keys)} keys found) for embeddings...")
-    #     from openai import AsyncOpenAI
-    #     for key in ollama_api_keys:
-    #         client = AsyncOpenAI(
-    #             api_key=key, 
-    #             base_url="https://ollama.com/v1"
-    #         )
-    #         models.append(create_ragas_embedding_model(
-    #             embeddings_model_name, 
-    #             provider="openai", 
-    #             client=client
-    #         ))
+    elif cloud_enabled and len(ollama_api_keys) > 0:
+        logger.info(f"Running with Ollama Cloud ({len(ollama_api_keys)} keys found) for embeddings...")
+        from openai import AsyncOpenAI
+        def model_generator():
+            while True:
+                keys = list(ollama_api_keys)
+                random.shuffle(keys)
+                client = AsyncOpenAI(
+                    api_key="ollama", 
+                    base_url="https://ollama.com/v1",
+                    http_client=httpx.AsyncClient(
+                        transport=BoundedAsyncHttpxTransport(
+                            delegate=AsyncKeyRotationHttpxTransport(shuffled_keys=keys),
+                            semaphore=_ragas_global_semaphore
+                        ),
+                        timeout=120.0,
+                    )
+                )
+                yield create_ragas_embedding_model(
+                    embeddings_model_name, 
+                    provider="openai", 
+                    client=client,
+                    max_tokens=4096,
+                    extra_body={
+                        "options": {
+                            "num_ctx": 8192 # Total context (input + output)
+                        }
+                    },
+                )
+            return model_generator()
 
-    else:
-        logger.info("Running with Ollama for embeddings...")
-        # from langchain_ollama import OllamaEmbeddings
-        # from ragas.embeddings import LangchainEmbeddingsWrapper
-
-        # client = OllamaEmbeddings(
-        #     model=embeddings_model_name,
-        #     base_url="http://localhost:11434"
-        # )
-        # ragas_embedding = LangchainEmbeddingsWrapper(client)
-        # models.append(ragas_embedding)
-        from ragas.embeddings.base import embedding_factory
-        ragas_embedding = embedding_factory(
-            provider="litellm",
-            model=f"ollama/{embeddings_model_name}",  # e.g., "ollama/nomic-embed-text"
+    logger.info("Running with Ollama for embeddings...")
+    return itertools.cycle([
+        create_ragas_embedding_model(
+            model=f"ollama/{embeddings_model_name}",
+            provider="litellm", #todo: why did i choose litellm? 
+            interface="modern",
             api_base="http://localhost:11434",
-            interface="modern"
         )
-        models.append(ragas_embedding)
-
-    iter = itertools.cycle(models)
-    # Randomize the first model used by skipping a random amount
-    for i in range(random.randint(0, len(models))):
-        next(iter)
-    return iter
-
+    ])
 
 class SyncKeyRotationHttpxTransport(httpx.HTTPTransport):
 
