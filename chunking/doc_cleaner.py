@@ -109,8 +109,6 @@ def clean_imageful_doc(file_path, is_table=False, is_eng=True, cache_path=None):
     import base64
     from langchain_core.messages import HumanMessage
 
-    #todo: caching and hashing
-
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -201,48 +199,95 @@ def clean_dataful_doc(file_path, is_eng=True):
     """
     Accepts a CSV or Excel file, reads it into a DataFrame, and returns a list of LangChain Document objects.
     """
+    import json
     import pandas as pd
     from langchain_core.messages import HumanMessage
     from langchain_core.documents import Document
+    import yaml
+    from utils.documents import preserialize_docs, reconstruct_docs
 
-    # step 1: read table and transform into json
-    sheet_df = pd.read_excel(file_path, sheet_name="Sheet1") #todo: make sheet_name dynamic
-    cleaned_df = sheet_df.dropna(how="all").dropna(how="all", axis=1)
-    cleaned_df = cleaned_df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
 
-    sheet_json = cleaned_df.to_json(orient="table", indent=4) 
+    file_hash = get_file_hash(file_path)
+    cache_dir = Path(f"./cleaned_docs_cache/{file_hash}")
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # step 2: raw representation of table
-    sheet_table = cleaned_df.to_dict(orient="records")
+    docs_file = cache_dir / "docs.yaml"
+    data_file = cache_dir / "data.json"
+    raw_table_file = cache_dir / "raw_table.json"
+    textual_rep_file = cache_dir / "textual_rep.md"
 
-    # step 3: textal representation of table
+    if docs_file.exists():
+        logger.info(f"Cache hit! Loading parsed data document from {docs_file}")
+        with open(docs_file, "r", encoding="utf-8") as f:
+            return reconstruct_docs(yaml.full_load(f))
+
+    if file_path.lower().endswith(".csv"):
+        sheet_dataframes = {"CSV": pd.read_csv(file_path)}
+    else:
+        sheet_dataframes = pd.read_excel(file_path, sheet_name=None)
+
+    docs = []
+    workbook_data = {"sheets": {}}
+    workbook_raw_table = {"sheets": {}}
+    textual_representations = []
     answer_llm = create_model_by_name(model="gemma4:31b-cloud")
-
     target_lang = "English" if is_eng else "Italian"
-    prompt = """
-                You are an expert data extraction assistant. Analyze the raw table data.
-                You MUST structure your response exactly like this:
-                
-                ---SUMMARY---
-                [Write a short and concise sentence description of what each row table shows.\
-                 The summary MUST be written in {target_lang}]
-                ---PAYLOAD---
-                [Write a perfect, row-by-row Markdown table transcription of all data]
-                """
-    message = HumanMessage(content=prompt)
-    response = answer_llm.invoke([message])
 
-    # todo: save cache of the table representation and raw table for future use
-    doc = Document(
-        page_content=response.content,
-        metadata={
-            "source": file_path,
-            "raw_table": sheet_table,
-            "json_schema": sheet_json # TODO: what would i do with extra reps?
-        }
-    )
+    for sheet_name, sheet_df in sheet_dataframes.items():
+        cleaned_df = sheet_df.dropna(how="all").dropna(how="all", axis=1)
+        cleaned_df = cleaned_df.map(
+            lambda value: value.strip() if isinstance(value, str) else value
+        )
 
-    return [doc]
+        table_payload = json.loads(cleaned_df.to_json(orient="table", indent=4))
+        table_rows = table_payload["data"]
+        workbook_data["sheets"][sheet_name] = table_payload
+        workbook_raw_table["sheets"][sheet_name] = {"rows": table_rows}
+
+        prompt = f"""
+            You are an expert data extraction assistant. Analyze the raw table data below.
+            Write the response exactly like this:
+
+            ---SUMMARY---
+            Write a short description of what each row shows in {target_lang}.
+            ---PAYLOAD---
+            Write a complete, row-by-row Markdown table transcription of all data.
+
+            WORKSHEET: {sheet_name}
+            RAW TABLE DATA:
+            {json.dumps(table_payload, ensure_ascii=False, indent=2)}
+            """
+        response = answer_llm.invoke([HumanMessage(content=prompt)])
+        textual_rep = response.content.strip()
+        textual_rep.append(
+            f"# Sheet: {sheet_name}\n\n{textual_rep}"
+        )
+
+        docs.append(
+            Document(
+                page_content=textual_rep,
+                metadata={
+                    "source": file_path,
+                    "sheet_name": sheet_name,
+                    "raw_table": {"rows": table_rows},
+                    "json_schema": table_payload["schema"],
+                },
+            )
+        )
+
+    with open(data_file, "w", encoding="utf-8") as f:
+        json.dump(workbook_data, f, ensure_ascii=False, indent=2)
+    with open(raw_table_file, "w", encoding="utf-8") as f:
+        json.dump(workbook_raw_table, f, ensure_ascii=False, indent=2)
+    with open(textual_rep_file, "w", encoding="utf-8") as f:
+        f.write("\n\n".join(textual_representations))
+    with open(docs_file, "w", encoding="utf-8") as f:
+        yaml.dump(preserialize_docs(docs), f, allow_unicode=True, sort_keys=False)
+    logger.info(f"Saved data, representation, and parsed document to {cache_dir}")
+
+    return docs
 
 def get_file_hash(file_path):
     """Generates a SHA-256 hash of the file to use as a unique ID."""
