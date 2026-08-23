@@ -47,14 +47,33 @@ embeddings_model_name = 'qwen3-embedding:0.6b'
 #embeddings_model_name = 'nlpaueb/bert-base-uncased-eurlex'
 #embeddings_model_name = 'all-MiniLM-L6-v2'
 
+class BatchedEmbeddings:
+    def __init__(self, embeddings, batch_size=16):
+        self.embeddings = embeddings
+        self.batch_size = batch_size
+
+    def embed_documents(self, texts):
+        if not texts:
+            return []
+        try:
+            return self.embeddings.embed_documents(texts[:self.batch_size]) + self.embed_documents(texts[self.batch_size:])
+        except Exception:
+            if len(texts) == 1:
+                raise
+            midpoint = len(texts) // 2
+            return self.embed_documents(texts[:midpoint]) + self.embed_documents(texts[midpoint:])
+
+    def embed_query(self, text):
+        return self.embeddings.embed_query(text)
+
 if (embeddings_model_name == 'all-MiniLM-L6-v2'
     or embeddings_model_name == 'dlicari/Italian-Legal-BERT'
     or embeddings_model_name == 'nlpaueb/bert-base-uncased-eurlex'):
     from langchain_huggingface import HuggingFaceEmbeddings
-    default_embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+    default_embeddings = BatchedEmbeddings(HuggingFaceEmbeddings(model_name=embeddings_model_name))
 else:
     from langchain_ollama import OllamaEmbeddings
-    default_embeddings = OllamaEmbeddings(model=embeddings_model_name)
+    default_embeddings = BatchedEmbeddings(OllamaEmbeddings(model=embeddings_model_name))
 
 def create_ollama_model(model, system=None, **kwargs):
     # Initialize the callbacks list from kwargs or a new list
@@ -265,7 +284,6 @@ def create_default_embedding_model_iterator(cloud_enabled=False):
         create_ragas_embedding_model(
             model=f"ollama/{embeddings_model_name}",
             provider="litellm", #todo: why did i choose litellm? 
-            interface="modern",
             api_base="http://localhost:11434",
         )
     ])
