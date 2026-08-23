@@ -1,0 +1,168 @@
+- id: "os_001"
+  test_set: 1
+  answer_type: "short"
+  difficulty: "easy"
+  question: "What is an operating system and what are its main purposes?"
+  answer: "An operating system is system software that manages computer hardware and software resources and provides common services for programs. Its main purposes include allocating resources, isolating applications, abstracting hardware details, and providing common services."
+  ground_truth: "An OS manages hardware and software resources, provides common services, allocates resources among applications, isolates applications, and abstracts hardware details."
+  article_refs:
+    - "Operating system — Definition and purpose"
+  contexts:
+    - "An operating system is system software that manages computer hardware and software resources and provides common services for computer programs."
+    - "Operating systems allocate resources between different applications, deciding when they will receive CPU time or space in memory."
+    - "The operating system also must isolate applications from each other to protect them from errors and security vulnerabilities."
+    - "Operating systems provide an interface that abstracts the details of accessing hardware."
+  adversarial: false
+
+- id: "os_002"
+  test_set: 1
+  answer_type: "medium"
+  difficulty: "easy"
+  question: "How does an operating system use virtual memory to make a computer appear to have more RAM?"
+  answer: "Virtual memory allows the operating system to use memory stored on disk or other storage together with physical RAM. This gives programs the perception that they have access to a larger amount of memory than the computer physically contains."
+  ground_truth: "Virtual memory uses virtual addressing and storage such as disk to give programs the perception of having more memory than the available physical RAM."
+  article_refs:
+    - "Operating system — Virtual memory"
+  contexts:
+    - "Many operating systems can 'trick' programs into using memory scattered around the hard disk and RAM as if it is one continuous chunk of memory, called virtual memory."
+    - "In modern operating systems, memory which is accessed less frequently can be temporarily stored on a disk or other media to make that space available for use by other programs."
+    - "Virtual memory provides the programmer or the user with the perception that there is a much larger amount of RAM in the computer than is really there."
+  adversarial: false
+
+- id: "os_003"
+  test_set: 1
+  answer_type: "medium"
+  difficulty: "medium"
+  question: "What is the difference between a process and a thread, and how does the OS manage threads?"
+  answer: "A thread is a unit of execution within a process. Threads of the same process share code, heap data, and other resources, while having their own thread ID, program counter, registers, and stack. The OS kernel schedules, suspends, and resumes threads and controls how much CPU time they receive."
+  ground_truth: "Threads divide a process into multiple execution units, sharing process resources while maintaining their own execution state. The kernel schedules and manages them."
+  article_refs:
+    - "Operating system — Concurrency"
+  contexts:
+    - "Threads enable splitting a process' work into multiple parts that can run simultaneously."
+    - "The operating system kernel schedules, suspends, and resumes threads, controlling when each thread runs and how much CPU time it receives."
+    - "Threads have their own thread ID, program counter, register set, and stack, but share code, heap data, and other resources with other threads of the same process."
+  adversarial: false
+
+- id: "os_004"
+  test_set: 1
+  answer_type: "medium"
+  difficulty: "medium"
+  question: "Why does an operating system use interrupts instead of making the CPU continuously wait for I/O operations?"
+  answer: "I/O devices are slower than the CPU, so waiting for every I/O operation would waste CPU time. Interrupts allow the device to notify the OS when an operation completes, allowing the CPU to execute other processes while the I/O is in progress."
+  ground_truth: "Interrupts prevent the CPU from having to wait or poll continuously for slower I/O devices and allow other processes to run while I/O is being performed."
+  article_refs:
+    - "Operating system — Interrupts"
+    - "Operating system — Input/output"
+  contexts:
+    - "I/O devices are slower than the CPU. Therefore, it would slow down the computer if the CPU had to wait for each I/O to finish."
+    - "A computer may implement interrupts for I/O completion, avoiding the need for polling or busy waiting."
+    - "While the writing takes place, the operating system will context switch to other processes as normal."
+  adversarial: false
+
+- id: "os_005"
+  test_set: 1
+  answer_type: "long"
+  difficulty: "hard"
+  question: "What happens when a program tries to access memory that it is not allowed to access?"
+  answer: "The memory protection mechanism causes an interrupt and transfers control to the kernel. The kernel determines that the access violates the process's permitted memory range and generally terminates the offending program while reporting the error. Virtual memory mechanisms such as paging or segmentation allow the kernel to control which memory addresses a process can access."
+  ground_truth: "An invalid memory access triggers an interrupt, causing the CPU to enter supervisor mode so the kernel can handle the violation. The kernel generally terminates the offending process."
+  article_refs:
+    - "Operating system — Memory management"
+    - "Operating system — Virtual memory"
+  contexts:
+    - "Memory protection enables the kernel to limit a process' access to the computer's memory."
+    - "Attempts to access other addresses trigger an interrupt, which causes the CPU to re-enter supervisor mode, placing the kernel in charge."
+    - "The kernel generally resorts to terminating the offending program, and reports the error."
+    - "The use of virtual memory addressing, such as paging or segmentation, means that the kernel can choose what memory each program may use."
+  adversarial: false
+
+- id: "os_006"
+  test_set: 2
+  answer_type: "medium"
+  difficulty: "medium"
+  question: "What is a page fault, and which part of the operating system handles it?"
+  answer: "A page fault occurs when a process accesses a memory page without the required preparation or mapping. The MMU detects the fault, while the operating system's kernel handles it by making the page accessible in physical memory or denying an illegal access."
+  ground_truth: "The MMU detects a page fault, and the OS kernel handles the exception by either making the requested page accessible or rejecting an invalid memory access."
+  article_refs:
+    - "Operating system — Virtual memory"
+    - "Kernel — Memory management"
+    - "Page fault — Definition"
+  contexts:
+    - "If a program tries to access memory that is not accessible memory, but nonetheless has been allocated to it, the kernel is interrupted. This kind of interrupt is typically a page fault."
+    - "A page fault is an exception that the memory management unit (MMU) raises when a process accesses a memory page without proper preparations."
+    - "The MMU detects the page fault, but the operating system's kernel handles the exception by making the required page accessible in the physical memory or denying an illegal memory access."
+  adversarial: false
+
+- id: "os_007"
+  test_set: 2
+  answer_type: "long"
+  difficulty: "hard"
+  question: "What is the difference between a minor page fault and a major page fault, and why is a major fault slower?"
+  answer: "A minor page fault occurs when the required page is already in physical memory but is not correctly marked as loaded in the MMU. The OS only needs to update the MMU mapping. A major page fault occurs when the page is not in memory, so the OS must load it from storage and may need to evict another page first. Major faults are slower because they require storage access."
+  ground_truth: "Minor faults require only MMU/page-table updates because the page is already in memory. Major faults require loading the page from storage and potentially writing another page out, which introduces storage latency."
+  article_refs:
+    - "Operating system — Virtual memory"
+    - "Kernel — Memory management"
+    - "Page fault — Minor and major page faults"
+  contexts:
+    - "If the page is loaded in memory at the time the fault is generated, but is not marked in the memory management unit as being loaded in memory, then it is called a minor, or soft, page fault."
+    - "If the page is not loaded in memory at the time of the fault, then the fault is major, or hard."
+    - "The page fault handler in the OS needs to load the page into working memory."
+    - "Thus, major faults are more expensive than minor faults and add storage access latency to the interrupted program's execution."
+  adversarial: false
+
+- id: "os_008"
+  test_set: 2
+  answer_type: "long"
+  difficulty: "hard"
+  question: "How are the kernel, virtual memory, and page faults connected when a program accesses data that is not currently in RAM?"
+  answer: "Virtual addressing allows a program's virtual address to refer to data that is not currently in RAM. When the program accesses that data, the MMU can raise a page fault. The kernel handles the fault, potentially writing an inactive page to disk, loading the requested data into memory, updating the memory mapping, and then allowing the program to resume."
+  ground_truth: "Virtual memory allows pages to be absent from RAM. The MMU detects the resulting page fault, and the kernel handles it by loading the requested page, potentially replacing another page, updating the mapping, and resuming the process."
+  article_refs:
+    - "Operating system — Virtual memory"
+    - "Kernel — Memory management"
+    - "Page fault — Major page faults"
+  contexts:
+    - "On many systems, a program's virtual address may refer to data that is not currently in memory."
+    - "When a program needs data that is not currently in RAM, the CPU signals to the kernel that this has happened."
+    - "The kernel responds by writing the contents of an inactive memory block to disk, if necessary, and replacing it with the data requested by the program."
+    - "The MMU detects the page fault, but the operating system's kernel handles the exception."
+  adversarial: false
+
+- id: "os_009"
+  test_set: 2
+  answer_type: "medium"
+  difficulty: "medium"
+  question: "Why can a page fault cause a large performance slowdown, and what can an OS do to reduce page faults?"
+  answer: "Page faults can be expensive because major faults may require access to storage, which is much slower than RAM. The OS can reduce page faults by using suitable page replacement algorithms, improving memory locality, reducing overall memory usage, and making more physical memory available."
+  ground_truth: "Page faults, especially major faults, introduce storage latency. The documents identify page replacement algorithms, improved memory locality, reduced memory usage, and more physical memory as ways to reduce their frequency."
+  article_refs:
+    - "Operating system — Virtual memory"
+    - "Page fault — Performance impact"
+  contexts:
+    - "Page faults degrade system performance and can cause thrashing."
+    - "Major page faults are more expensive than minor faults and add storage access latency."
+    - "Performance optimization often involves efforts to reduce the number of page faults, by reducing overall memory usage or by improving memory locality."
+    - "OS developers use an appropriate page replacement algorithm that maximizes page hits."
+    - "Having more physical memory also reduces the likelihood of page faults."
+  adversarial: false
+
+- id: "os_010"
+  test_set: 2
+  answer_type: "long"
+  difficulty: "hard"
+  question: "If a program accesses an invalid virtual address, is that the same as a normal page fault that loads data from disk?"
+  answer: "No. An invalid page fault occurs when the referenced address is not part of the process's virtual address space, so there cannot be a corresponding page in memory. In contrast, a valid page fault can occur because a required page has not yet been loaded into memory. For a valid fault, the kernel can make the page accessible, potentially loading it from storage. For an invalid fault, the OS generally reports an error such as a segmentation fault and terminates the offending process."
+  ground_truth: "Invalid page faults result from references outside the process's virtual address space and generally lead to a segmentation fault or similar error. A valid page fault is handled by the kernel to make a legitimate page accessible, potentially requiring storage access."
+  article_refs:
+    - "Operating system — Memory management"
+    - "Kernel — Memory management"
+    - "Page fault — Invalid page faults"
+  contexts:
+    - "If a page fault occurs for a reference to an address that is not part of the virtual address space, then it is called an invalid page fault."
+    - "The page fault handler in the operating system will then generally pass a segmentation fault to the offending process."
+    - "A page fault is an exception that the MMU raises when a process accesses a memory page without proper preparations."
+    - "The operating system's kernel handles the exception by making the required page accessible in the physical memory or denying an illegal memory access."
+    - "Illegal accesses and invalid page faults can result in a segmentation fault or bus error."
+  adversarial: true
