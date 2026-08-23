@@ -40,8 +40,8 @@ files = [
     ("./test/CELEX_32006L0054_IT_TXT.pdf", "pi-cmn3q02a805ch0gpk1yqwpuri", 'ita', "./dataset/direttiva_2006_54_REAL_enriched.yaml"),
     ("./test/CELEX_32006L0054_EN_TXT.pdf", "pi-cmn3p5efs00nhlfpka5hmmlto", 'eng', "./dataset/direttiva_2006_54_REAL_enriched_EN.yaml"),
     # ("./test/cross-ref/Kernel.pdf", "pi-cmn3q02a805ch0gpk1yqwpuri", 'eng', "./dataset/cross_referential_dataset.yaml"),
-    # ("./test/cross-ref/Operating_system.pdf", "pi-cmn3p5efs00nhlfpka5hmmlto", 'eng', "./dataset/cross_referential_dataset.yaml"),
     # ("./test/cross-ref/Page_fault.pdf", "pi-cmn3p5efs00nhlfpka5hfeato", 'eng', "./dataset/cross_referential_dataset.yaml"),
+    # ("./test/cross-ref/Operating_system.pdf", "pi-cmn3p5efs00nhlfpka5hmmlto", 'eng', "./dataset/cross_referential_dataset.yaml"),
 ]
 
 # Metodi di chunking
@@ -74,7 +74,8 @@ def retrieve_chunking_dataset(
     chunking_function, 
     raw_text, 
     is_eng, 
-    dataset, 
+    dataset,
+    source_name,
     base_persist_dir="./chroma_eval_cache"
 ):
     from langchain_chroma import Chroma
@@ -89,21 +90,25 @@ def retrieve_chunking_dataset(
         persist_directory=experiment_dir
     )
 
-    # Check if we already did the work
-    if vectorstore._collection.count() == 0:
-        logger.info(f"Collection is empty")
+    # Add this source once to the shared collection.
+    existing_source = vectorstore._collection.get(
+        where={"source_file": source_name},
+        limit=1,
+    )
+    if not existing_source["ids"]:
         logger.info(f"Performing chunking...")
         raw_chunks = chunking_function(raw_text, is_eng=is_eng)
 
         processed_docs = []
         for chunk in raw_chunks:
+            chunk.metadata["source_file"] = source_name
             chunk.metadata = flatten_metadata_for_chroma(chunk.metadata)
             processed_docs.append(chunk)
 
         logger.info(f"Performing embedding...")
         vectorstore.add_documents(documents=processed_docs)
     else:
-        logger.info(f"Found {vectorstore._collection.count()} chunks! Skipping compute.")
+        logger.info(f"Found cached chunks for {source_name}; skipping compute.")
 
     # Set up the retriever
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
@@ -120,8 +125,8 @@ def retrieve_chunking_dataset(
     dataset["retrieved_contexts"] = contexts
     return dataset
 
-async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, raw_text, is_eng, dataset):
-    experiment_name = f"{model_name}_{embeddings_model_name}_{chunking_name.lower().replace(" ", "-")}_{"EN" if is_eng else "IT"}"
+async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, raw_text, is_eng, dataset, source_name):
+    experiment_name = f"{model_name}_{embeddings_model_name}_{chunking_name.lower().replace(' ', '-')}_{'EN' if is_eng else 'IT'}"
     # Replace anything that isn't alphanumeric, dash, or underscore with a dash
     experiment_name = re.sub(r'[^a-zA-Z0-9_-]', '-', experiment_name)
     # Strip leading/trailing punctuation
@@ -130,7 +135,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
     if chunking_function == None:
         dataset = retrieve_pageindex_dataset(page_index_doc_id, dataset)
     else:
-        dataset = retrieve_chunking_dataset(experiment_name, chunking_function, raw_text, is_eng, dataset)
+        dataset = retrieve_chunking_dataset(experiment_name, chunking_function, raw_text, is_eng, dataset, source_name)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     experiment_name = f"{timestamp}_{experiment_name}"
@@ -215,7 +220,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
 
         async def evaluate_ar():
             try:
-                score = await AnswerRelevancy(llm=next(llm_iterator), embeddings=embedding_iterator).ascore(
+                score = await AnswerRelevancy(llm=next(llm_iterator), embeddings=next(embedding_iterator)).ascore(
                     user_input=row["user_input"],
                     response=row["response"]
                 )
@@ -226,7 +231,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
 
         async def evaluate_ac():
             try:
-                score = await AnswerCorrectness(llm=next(llm_iterator), embeddings=embedding_iterator).ascore(
+                score = await AnswerCorrectness(llm=next(llm_iterator), embeddings=next(embedding_iterator)).ascore(
                     user_input=row["user_input"],
                     response=row["response"],
                     reference=row["reference"]
@@ -307,7 +312,7 @@ async def evaluate_file(file_name, page_index_doc_id, is_eng, dataset_path):
         async with async_mdc(method=name):
             logger.info(f"Metodo {name}...")
             try:
-                precision, recall, entity_recall, faithfulness, noise_sensitivity, answer_relevancy, answer_correctness = await evaluate_method(name, chunking_function, page_index_doc_id, raw_text, is_eng, golden_dataset)
+                precision, recall, entity_recall, faithfulness, noise_sensitivity, answer_relevancy, answer_correctness = await evaluate_method(name, chunking_function, page_index_doc_id, raw_text, is_eng, golden_dataset, os.path.splitext(os.path.basename(file_name))[0])
                 table_data.append([name, f"{precision:.4f}", f"{recall:.4f}", f"{entity_recall:.4f}", f"{faithfulness:.4f}", f"{noise_sensitivity:.4f}", f"{answer_relevancy:.4f}", f"{answer_correctness:.4f}"])
                 if faithfulness > 0.75 or faithfulness:
                     logger.info("OK")
