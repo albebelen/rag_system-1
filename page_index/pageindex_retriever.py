@@ -6,20 +6,25 @@ import pageindex.utils as utils
 from utils.model_factories import create_default_model
 
 
-def retrieve_dataset(doc_id, dataset):
+def retrieve_dataset(doc_ids, dataset):
     if "PAGE_INDEX_API_KEY" not in os.environ:
         raise "missing PAGE_INDEX_API_KEY"
    
     pi_client = PageIndexClient(api_key=os.environ.get("PAGE_INDEX_API_KEY"))
     llm = create_default_model()
 
-    if not pi_client.is_retrieval_ready(doc_id):
-        raise "Document was not processed"
-    
-    tree = pi_client.get_tree(doc_id, node_summary=True)['result']
+    if isinstance(doc_ids, str):
+        doc_ids = [doc_ids]
+
+    trees = []
+    for doc_id in doc_ids:
+        if not pi_client.is_retrieval_ready(doc_id):
+            raise "Document was not processed"
+        trees.append(pi_client.get_tree(doc_id, node_summary=True)['result'])
+
     contexts = []
     for query in tqdm(dataset["question"], desc="Retrieving tree"):
-        contexts.append([ retrieve(tree, llm, query) ])
+        contexts.append([retrieve(tree, llm, query) for tree in trees])
         
     dataset["contexts"] = contexts
     dataset["retrieved_contexts"] = contexts

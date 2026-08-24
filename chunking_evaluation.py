@@ -125,7 +125,7 @@ def retrieve_chunking_dataset(
     dataset["retrieved_contexts"] = contexts
     return dataset
 
-async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, raw_text, is_eng, dataset, source_name):
+async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, raw_text, is_eng, dataset, source_name):
     experiment_name = f"{model_name}_{embeddings_model_name}_{chunking_name.lower().replace(' ', '-')}_{'EN' if is_eng else 'IT'}"
     # Replace anything that isn't alphanumeric, dash, or underscore with a dash
     experiment_name = re.sub(r'[^a-zA-Z0-9_-]', '-', experiment_name)
@@ -133,7 +133,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
     experiment_name = experiment_name.strip('_-')
 
     if chunking_function == None:
-        dataset = retrieve_pageindex_dataset(page_index_doc_id, dataset)
+        dataset = retrieve_pageindex_dataset(page_index_doc_ids, dataset)
     else:
         dataset = retrieve_chunking_dataset(experiment_name, chunking_function, raw_text, is_eng, dataset, source_name)
 
@@ -300,8 +300,8 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
             df['answer_correctness'].mean()
     )
 
-async def evaluate_file(file_name, page_index_doc_id, is_eng, dataset_path):
-    logger.info(f"Analysing file {file_name} [{page_index_doc_id}]")
+async def evaluate_file(file_name, page_index_doc_ids, is_eng, dataset_path, run_page_index=True):
+    logger.info(f"Analysing file {file_name} [{page_index_doc_ids}]...")
     raw_text = clean_doc(file_name, is_eng)
 
     golden_dataset = load_dataset(dataset_path)
@@ -309,10 +309,13 @@ async def evaluate_file(file_name, page_index_doc_id, is_eng, dataset_path):
     # Esegui benchmark
     table_data = []
     for name, chunking_function in tqdm(chunking_strategies.items(), desc="Chunking strategies"):
+        if name == "PageIndex" and not run_page_index:
+            continue
+
         async with async_mdc(method=name):
             logger.info(f"Metodo {name}...")
             try:
-                precision, recall, entity_recall, faithfulness, noise_sensitivity, answer_relevancy, answer_correctness = await evaluate_method(name, chunking_function, page_index_doc_id, raw_text, is_eng, golden_dataset, os.path.splitext(os.path.basename(file_name))[0])
+                precision, recall, entity_recall, faithfulness, noise_sensitivity, answer_relevancy, answer_correctness = await evaluate_method(name, chunking_function, page_index_doc_ids, raw_text, is_eng, golden_dataset, os.path.splitext(os.path.basename(file_name))[0])
                 table_data.append([name, f"{precision:.4f}", f"{recall:.4f}", f"{entity_recall:.4f}", f"{faithfulness:.4f}", f"{noise_sensitivity:.4f}", f"{answer_relevancy:.4f}", f"{answer_correctness:.4f}"])
                 if faithfulness > 0.75 or faithfulness:
                     logger.info("OK")
@@ -332,8 +335,16 @@ async def evaluate_file(file_name, page_index_doc_id, is_eng, dataset_path):
 
 
 async def main():
-    for (file_name, page_index_doc_id, language, dataset_path) in tqdm(files, desc="Files"):
+    page_index_doc_ids = [doc_id for _, doc_id, _, _ in files]
+
+    for file_index, (file_name, _, language, dataset_path) in enumerate(tqdm(files, desc="Files")):
         async with async_mdc(file_name=file_name):
-            await evaluate_file(file_name, page_index_doc_id, (language == 'eng'), dataset_path)
+            await evaluate_file(
+                file_name,
+                page_index_doc_ids,
+                (language == 'eng'),
+                dataset_path,
+                run_page_index=(file_index == 0),
+            )
 
 asyncio.run(main())
