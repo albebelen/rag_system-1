@@ -242,9 +242,18 @@ def clean_dataful_doc(file_path, is_eng=True):
         )
 
         table_payload = json.loads(cleaned_df.to_json(orient="table", indent=4))
-        table_rows = table_payload["data"]
+        table_rows = {
+            "columns": table_payload["schema"]["fields"],
+            "rows": table_payload["data"],
+            "metadata": {
+                "sheet_name": sheet_name,
+                "row_count": len(table_payload["data"]),
+                "column_count": len(table_payload["schema"]["fields"]),
+                "primary_key": table_payload["schema"].get("primaryKey", []),
+            },
+        }
         workbook_data["sheets"][sheet_name] = table_payload
-        workbook_raw_table["sheets"][sheet_name] = {"rows": table_rows}
+        workbook_raw_table["sheets"][sheet_name] = table_rows
 
         prompt = f"""
             You are an expert data extraction assistant. Analyze the raw table data below.
@@ -253,32 +262,32 @@ def clean_dataful_doc(file_path, is_eng=True):
             ---SUMMARY---
             Write a short description of what each row shows in {target_lang}.
             ---PAYLOAD---
-            Write a complete, row-by-row Markdown table transcription of all data.
+            Write a complete, row-by-row textual representation of the data.
+            Include the table columns and any useful metadata such as row count and column types.
 
-            WORKSHEET: {sheet_name}
             RAW TABLE DATA:
             {json.dumps(table_payload, ensure_ascii=False, indent=2)}
             """
         response = answer_llm.invoke([HumanMessage(content=prompt)])
         textual_rep = response.content.strip()
-        textual_rep.append(
+        textual_representations.append(
             f"# Sheet: {sheet_name}\n\n{textual_rep}"
         )
 
         docs.append(
             Document(
-                page_content=textual_rep,
+                page_content="\n\n".join(textual_representations),
                 metadata={
                     "source": file_path,
                     "sheet_name": sheet_name,
-                    "raw_table": {"rows": table_rows},
-                    "json_schema": table_payload["schema"],
+                    "raw_table": table_rows,
+                    "json_schema": table_payload["data"],
                 },
             )
         )
 
     with open(data_file, "w", encoding="utf-8") as f:
-        json.dump(workbook_data, f, ensure_ascii=False, indent=2)
+        json.dump(table_payload["data"], f, ensure_ascii=False, indent=2)
     with open(raw_table_file, "w", encoding="utf-8") as f:
         json.dump(workbook_raw_table, f, ensure_ascii=False, indent=2)
     with open(textual_rep_file, "w", encoding="utf-8") as f:
