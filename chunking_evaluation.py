@@ -124,8 +124,8 @@ def retrieve_chunking_dataset(
     dataset["retrieved_contexts"] = contexts
     return dataset
 
-async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, raw_text, is_eng, dataset):
-    experiment_name = f"{model_name}_{embeddings_model_name}_{chunking_name.lower().replace(" ", "-")}_{"EN" if is_eng else "IT"}"
+async def evaluate_method(file_name, chunking_name, chunking_function, page_index_doc_id, timestamp, raw_text, is_eng, dataset):
+    experiment_name = f"{file_name}_{model_name}_{embeddings_model_name}_{chunking_name.lower().replace(" ", "-")}_{"EN" if is_eng else "IT"}"
     # Replace anything that isn't alphanumeric, dash, or underscore with a dash
     experiment_name = re.sub(r'[^a-zA-Z0-9_-]', '-', experiment_name)
     # Strip leading/trailing punctuation
@@ -136,8 +136,8 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_id, r
     else:
         dataset = retrieve_chunking_dataset(experiment_name, chunking_function, raw_text, is_eng, dataset)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"{timestamp}_{experiment_name}"
+    ts = timestamp.strftime("%Y%m%d_%H%M%S")
+    experiment_name = f"{ts}_{experiment_name}"
 
     # Lo usa solo la faithfulness:
     dataset["response"] = []
@@ -305,6 +305,7 @@ async def evaluate_file(file_name, page_index_doc_id, is_eng, dataset_path):
     raw_text = clean_doc(file_name, is_eng)
 
     golden_dataset = load_dataset(dataset_path)
+    timestamp = datetime.now()
 
     # Esegui benchmark
     table_data = []
@@ -312,7 +313,8 @@ async def evaluate_file(file_name, page_index_doc_id, is_eng, dataset_path):
         async with async_mdc(method=name):
             logger.info(f"Metodo {name}...")
             try:
-                precision, recall, entity_recall, faithfulness, noise_sensitivity, answer_relevancy, answer_correctness = await evaluate_method(name, chunking_function, page_index_doc_id, raw_text, is_eng, golden_dataset)
+                precision, recall, entity_recall, faithfulness, noise_sensitivity, answer_relevancy, answer_correctness = (
+                    await evaluate_method(file_name, name, chunking_function, page_index_doc_id, timestamp, raw_text, is_eng, golden_dataset))
                 table_data.append([name, f"{precision:.4f}", f"{recall:.4f}", f"{entity_recall:.4f}", f"{faithfulness:.4f}", f"{noise_sensitivity:.4f}", f"{answer_relevancy:.4f}", f"{answer_correctness:.4f}"])
                 if faithfulness > 0.75 or faithfulness:
                     logger.info("OK")
