@@ -3,7 +3,10 @@ from .my_log import logger
 import itertools
 import random
 import asyncio
+
 import httpx
+from .httpx_logging import default_sync_httpx_transport, default_async_httpx_transport
+from .httpx_transports import SyncKeyRotationHttpxTransport, AsyncKeyRotationHttpxTransport, BoundedAsyncHttpxTransport
 
 is_streaming_stdout_enabled = os.getenv("DEBUG_PRINT_STDOUT", "false").lower() == "true"
 os.environ["RAGAS_DO_NOT_TRACK"] = 'true'
@@ -22,6 +25,8 @@ ollama_api_keys = [
 ########################################################################
 #                               LLMs                                   #
 ########################################################################
+
+timeout = 120.0 # Safe reading window for heavy 120B token generations
 
 if "GOOGLE_API_KEY" in os.environ:
     model_name = "gemini-3.1-flash-lite-preview"
@@ -60,6 +65,19 @@ else:
     from langchain_ollama import OllamaEmbeddings
     default_embeddings = OllamaEmbeddings(model=embeddings_model_name)
 
+########################################################################
+#                           Factories                                  #
+########################################################################
+
+def boundedHttpxAsyncClient(delegate=None):
+    return httpx.AsyncClient(
+        transport=BoundedAsyncHttpxTransport(
+            delegate=delegate, 
+            semaphore=_ragas_global_semaphore
+        ),
+        timeout=timeout
+    )
+
 def create_ollama_model(model, system=None, **kwargs):
     # Initialize the callbacks list from kwargs or a new list
     callbacks = kwargs.pop("callbacks", [])
@@ -97,6 +115,8 @@ def create_default_model(**kwargs):
             model=model_name,
             api_key=os.environ.get("UNIMI_API_KEY"),
             base_url="https://open-webui.ricerca.sesar.di.unimi.it/openai",
+            http_client=httpx.Client(transport=default_sync_httpx_transport(), timeout=timeout),
+            http_async_client=httpx.AsyncClient(transport=default_async_httpx_transport(), timeout=timeout),
             extra_body=extra_body,
             **kwargs
         )
@@ -186,19 +206,13 @@ def create_default_ragas_model_iterator():
         client = AsyncOpenAI(
             api_key=os.environ.get("UNIMI_API_KEY"), 
             base_url="https://open-webui.ricerca.sesar.di.unimi.it/openai",
-            http_client=httpx.AsyncClient(
-                transport=BoundedAsyncHttpxTransport(
-                    delegate=httpx.AsyncHTTPTransport(),
-                    semaphore=_ragas_global_semaphore
-                ),
-                timeout=120.0
-            )
+            http_client=boundedHttpxAsyncClient()
         )
         return itertools.cycle([create_ragas_model(
             model_name, 
             provider="openai", 
             client=client,
-            #stream=True,
+            max_tokens=4096,
             extra_body={
                 "chat_template_kwargs": {
                     "enable_thinking": False
@@ -216,18 +230,14 @@ def create_default_ragas_model_iterator():
                 client = AsyncOpenAI(
                     api_key="ollama",
                     base_url="https://ollama.com/v1",
-                    http_client=httpx.AsyncClient(
-                        transport=BoundedAsyncHttpxTransport(
+                    http_client=boundedHttpxAsyncClient(
                             delegate=AsyncKeyRotationHttpxTransport(shuffled_keys=keys),
-                            semaphore=_ragas_global_semaphore
-                        ),
-                        timeout=120.0,
                     )
                 )
                 yield create_ragas_model(
                     model_name, 
                     provider="openai", 
-                    client=client,                  
+                    client=client,
                     max_tokens=4096, 
                     # Ollama-specific context window size
                     extra_body={
@@ -243,13 +253,7 @@ def create_default_ragas_model_iterator():
     client = AsyncOpenAI(
         api_key="ollama", 
         base_url="http://localhost:11434/v1",
-        http_client=httpx.AsyncClient(
-            transport=BoundedAsyncHttpxTransport(
-                delegate=httpx.AsyncHTTPTransport(),
-                semaphore=_ragas_global_semaphore
-            ),
-            timeout=120.0  # Safe reading window for heavy 120B token generations
-        )
+        http_client=boundedHttpxAsyncClient(),
     )
     return itertools.cycle([
         create_ragas_model(model_name, provider="openai", client=client) 
@@ -315,71 +319,3 @@ def create_default_embedding_model_iterator():
     for i in range(random.randint(0, len(models))):
         next(iter)
     return iter
-
-
-class SyncKeyRotationHttpxTransport(httpx.HTTPTransport):
-
-    def __init__(self, shuffled_keys, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.keys = shuffled_keys
-        self.total_keys = len(shuffled_keys)
-        self.current_index = 0
-
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        while True:
-            active_key = self.keys[self.current_index]
-            request.headers["Authorization"] = f"Bearer {active_key}"
-            try:
-                response = super().handle_request(request)
-            except Exception as e:
-                raise e
-            
-            if response.status_code != 429:
-                return response
-            
-            self.current_index += 1
-            if self.current_index >= self.total_keys:
-                raise httpx.HTTPStatusError("Ollama keys completely exhausted.", request=request, response=response)
-
-class AsyncKeyRotationHttpxTransport(httpx.AsyncHTTPTransport):
-
-    def __init__(self, shuffled_keys, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.keys = shuffled_keys
-        self.total_keys = len(shuffled_keys)
-        self.current_index = 0
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        while True:
-            active_key = self.keys[self.current_index]
-            request.headers["Authorization"] = f"Bearer {active_key}"
-            try:
-                response = await super().handle_async_request(request)
-            except Exception as e:
-                raise e
-            
-            if response.status_code != 429:
-                return response
-            
-            self.current_index += 1
-            if self.current_index >= self.total_keys:
-                raise httpx.HTTPStatusError("Ollama keys completely exhausted.", request=request, response=response)
-
-class BoundedAsyncHttpxTransport(httpx.AsyncBaseTransport):
-    """
-    A decorator wrapper for any httpx Async Transport that chokes concurrency
-    using a shared asyncio.Semaphore before delegating the HTTP call.
-    """
-    def __init__(self, delegate: httpx.AsyncBaseTransport, semaphore: asyncio.Semaphore):
-        super().__init__()
-        self.delegate = delegate
-        self.semaphore = semaphore
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        async with self.semaphore:
-            # Delegate the actual HTTP call to the underlying transport instance
-            return await self.delegate.handle_async_request(request)
-
-    async def aclose(self) -> None:
-        """Ensure the underlying delegate transport is gracefully closed."""
-        await self.delegate.aclose()

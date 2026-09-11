@@ -1,3 +1,4 @@
+logs/*
 .env.local
 test/*.md
 test/*.csv
