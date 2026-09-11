@@ -34,7 +34,8 @@ if "GOOGLE_API_KEY" in os.environ:
 elif "UNIMI_API_KEY" in os.environ:
     model_name = "Qwen/Qwen3.6-35B-A3B-FP8"
     #model_name = "Qwen/Qwen3-8B"
-    _ragas_global_semaphore = asyncio.Semaphore(1)
+    _ragas_global_semaphore = asyncio.Semaphore(5)
+    timeout = 5 * 60
 elif len(ollama_api_keys) > 0:
     model_name = "gpt-oss:120b-cloud"
     _ragas_global_semaphore = asyncio.Semaphore(3 * len(ollama_api_keys))
@@ -212,7 +213,7 @@ def create_default_ragas_model_iterator():
             model_name, 
             provider="openai", 
             client=client,
-            max_tokens=4096,
+            max_tokens=8192,
             extra_body={
                 "chat_template_kwargs": {
                     "enable_thinking": False
