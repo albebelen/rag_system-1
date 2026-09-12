@@ -6,6 +6,22 @@ import pageindex.utils as utils
 from utils.model_factories import create_default_model
 
 
+def _parse_tree_search_result(response):
+    response = response.strip()
+    if response.startswith("```"):
+        response = response.removeprefix("```").removeprefix("json").strip()
+        response = response.removesuffix("```").strip()
+
+    try:
+        return json.loads(response)
+    except json.JSONDecodeError:
+        start = response.find("{")
+        if start == -1:
+            raise
+        parsed, _ = json.JSONDecoder().raw_decode(response[start:])
+        return parsed
+
+
 def retrieve_dataset(doc_ids, dataset):
     if "PAGE_INDEX_API_KEY" not in os.environ:
         raise "missing PAGE_INDEX_API_KEY"
@@ -52,6 +68,14 @@ def retrieve(tree, llm, query):
     """
 
     tree_search_result = llm.invoke(search_prompt).text
-    node_list = json.loads(tree_search_result)["node_list"]
+    try:
+        result = _parse_tree_search_result(tree_search_result)
+        node_list = result["node_list"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        preview = tree_search_result[:200].replace("\n", " ")
+        raise ValueError(f"Invalid PageIndex retrieval response: {preview!r}") from exc
+
     node_map = utils.create_node_mapping(tree)
-    return "\n\n".join(node_map[node_id]["text"] for node_id in node_list)
+    return "\n\n".join(
+        node_map[node_id]["text"] for node_id in node_list if node_id in node_map
+    )
