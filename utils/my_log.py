@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from tqdm import tqdm
 import contextvars
 from contextlib import contextmanager, asynccontextmanager
@@ -48,14 +49,23 @@ class MDCFormatter(logging.Formatter):
         return super().format(record)
 
 # Setup Logging
+log_dir = Path(__file__).resolve().parent.parent / "logs"
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / "app.log"
+
 handler = TqdmStreamHandler()
 handler.setFormatter(MDCFormatter('%(asctime)s | %(levelname)s%(mdc)s | %(message)s'))
 handler.addFilter(MDCFilter())
+
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(MDCFormatter('%(asctime)s | %(levelname)s%(mdc)s | %(message)s'))
+file_handler.addFilter(MDCFilter())
 
 root_logger = logging.getLogger()
 if root_logger.hasHandlers():
     root_logger.handlers.clear()
 root_logger.addHandler(handler)
+root_logger.addHandler(file_handler)
 root_logger.setLevel(logging.WARN)
 
 logger = logging.getLogger("my_app")
