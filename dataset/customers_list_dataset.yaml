@@ -1,0 +1,125 @@
+- id: "q_001"
+  test_set: 1
+  answer_type: "short"
+  difficulty: "easy"
+  question: "What is the email address associated with customer Preston Lozano?"
+  answer: "The email address for Preston Lozano is vmata@colon.com."
+  ground_truth: "According to the customers list, Preston Lozano (Customer ID: 1Ef7b82A4CAAD10) has the email address vmata@colon.com."
+  article_refs: ["customers_list.csv", "Row 2"]
+  contexts:
+    - "Index: 2, Customer Id: 1Ef7b82A4CAAD10, First Name: Preston, Last Name: Lozano, Company: Vega-Gentry, City: East Jimmychester, Country: Djibouti, Email: vmata@colon.com, Subscription Date: 2021-04-23"
+  adversarial: false
+
+- id: "q_002"
+  test_set: 1
+  answer_type: "medium"
+  difficulty: "easy"
+  question: "Which company is customer Joanna Bender affiliated with, and what city is she located in?"
+  answer: "Joanna Bender is affiliated with the company Martin, Lang and Andrade and is located in the city of West Priscilla."
+  ground_truth: "Joanna Bender (Customer ID: 053d585Ab6b3159) works at Martin, Lang and Andrade, located in West Priscilla, Slovakia (Slovak Republic)."
+  article_refs: ["customers_list.csv", "Row 5"]
+  contexts:
+    - "Index: 5, Customer Id: 053d585Ab6b3159, First Name: Joanna, Last Name: Bender, Company: Martin, Lang and Andrade, City: West Priscilla, Country: Slovakia (Slovak Republic)"
+  adversarial: false
+
+- id: "q_003"
+  test_set: 1
+  answer_type: "short"
+  difficulty: "medium"
+  question: "On what date did Linda Olsen subscribe to the superstore?"
+  answer: "Linda Olsen subscribed on June 2, 2020 (2020-06-02)."
+  ground_truth: "The subscription date recorded for Linda Olsen (Customer ID: 5Cef8BFA16c5e3c) is 2020-06-02."
+  article_refs: ["customers_list.csv", "Row 4"]
+  contexts:
+    - "Index: 4, Customer Id: 5Cef8BFA16c5e3c, First Name: Linda, Last Name: Olsen, Company: Dominguez, Mcmillan and Donovan, Subscription Date: 2020-06-02"
+  adversarial: false
+
+- id: "q_004"
+  test_set: 1
+  answer_type: "medium"
+  difficulty: "medium"
+  question: "Provide the Customer IDs and subscription dates for the customers residing in Chile and Djibouti."
+  answer: "The customer residing in Chile is Sheryl Baxter with Customer ID DD37Cf93aecA6Dc and subscription date 2020-08-24. The customer residing in Djibouti is Preston Lozano with Customer ID 1Ef7b82A4CAAD10 and subscription date 2021-04-23."
+  ground_truth: "Chile: Sheryl Baxter (ID: DD37Cf93aecA6Dc, Subscription Date: 2020-08-24). Djibouti: Preston Lozano (ID: 1Ef7b82A4CAAD10, Subscription Date: 2021-04-23)."
+  article_refs: ["customers_list.csv", "Row 1", "Row 2"]
+  contexts:
+    - "Index: 1, Customer Id: DD37Cf93aecA6Dc, First Name: Sheryl, Last Name: Baxter, Country: Chile, Subscription Date: 2020-08-24"
+    - "Index: 2, Customer Id: 1Ef7b82A4CAAD10, First Name: Preston, Last Name: Lozano, Country: Djibouti, Subscription Date: 2021-04-23"
+  adversarial: false
+
+- id: "q_005"
+  test_set: 1
+  answer_type: "long"
+  difficulty: "hard"
+  question: "Compare the records for Sheryl Baxter and Sheryl Meyers, detailing their Customer IDs, companies, countries, cities, emails, and subscription dates."
+  answer: "Sheryl Baxter has Customer ID DD37Cf93aecA6Dc, is affiliated with Rasmussen Group, lives in East Leonard, Chile, has email zunigavanessa@smith.info, and subscribed on 2020-08-24. Sheryl Meyers has Customer ID C2dE4dEEc489ae0, is affiliated with Browning-Simon, lives in Robersonstad, Cyprus, has email mariokhan@ryan-pope.org, and subscribed on 2020-01-13."
+  ground_truth: "Sheryl Baxter (Index 1): ID DD37Cf93aecA6Dc, Company Rasmussen Group, City East Leonard, Country Chile, Email zunigavanessa@smith.info, Subscription Date 2020-08-24. Sheryl Meyers (Index 9): ID C2dE4dEEc489ae0, Company Browning-Simon, City Robersonstad, Country Cyprus, Email mariokhan@ryan-pope.org, Subscription Date 2020-01-13."
+  article_refs: ["customers_list.csv", "Row 1", "Row 9"]
+  contexts:
+    - "Index: 1, Customer Id: DD37Cf93aecA6Dc, First Name: Sheryl, Last Name: Baxter, Company: Rasmussen Group, City: East Leonard, Country: Chile, Email: zunigavanessa@smith.info, Subscription Date: 2020-08-24"
+    - "Index: 9, Customer Id: C2dE4dEEc489ae0, First Name: Sheryl, Last Name: Meyers, Company: Browning-Simon, City: Robersonstad, Country: Cyprus, Email: mariokhan@ryan-pope.org, Subscription Date: 2020-01-13"
+  adversarial: false
+
+- id: "q_006"
+  test_set: 2
+  answer_type: "short"
+  difficulty: "easy"
+  question: "What is the primary contact phone number (Phone 1) for customer Darren Peck?"
+  answer: "The primary contact phone number (Phone 1) for Darren Peck is (496)452-6181x3291."
+  ground_truth: "Darren Peck (Customer ID: EA4d384DfDbBf77) has Phone 1 listed as (496)452-6181x3291."
+  article_refs: ["customers_list.csv", "Row 7"]
+  contexts:
+    - "Index: 7, Customer Id: EA4d384DfDbBf77, First Name: Darren, Last Name: Peck, Phone 1: (496)452-6181x3291, Country: Pitcairn Islands"
+  adversarial: false
+
+- id: "q_007"
+  test_set: 2
+  answer_type: "medium"
+  difficulty: "hard"
+  question: "Identify the customers who subscribed in April 2021 among the first 10 rows and list their full names, companies, and countries."
+  answer: "Among the first 10 entries, three customers subscribed in April 2021: Preston Lozano (Vega-Gentry, Djibouti) on 2021-04-23, Joanna Bender (Martin, Lang and Andrade, Slovakia) on 2021-04-17, and Brett Mullen (Sanford, Davenport and Giles, Bulgaria) on 2021-04-12."
+  ground_truth: "In the first 10 records, the April 2021 subscribers are: Preston Lozano (Vega-Gentry, Djibouti, 2021-04-23), Joanna Bender (Martin, Lang and Andrade, Slovakia, 2021-04-17), and Brett Mullen (Sanford, Davenport and Giles, Bulgaria, 2021-04-12)."
+  article_refs: ["customers_list.csv", "Row 2", "Row 5", "Row 8"]
+  contexts:
+    - "Index: 2, Preston Lozano, Vega-Gentry, Djibouti, 2021-04-23"
+    - "Index: 5, Joanna Bender, Martin, Lang and Andrade, Slovakia (Slovak Republic), 2021-04-17"
+    - "Index: 8, Brett Mullen, Sanford, Davenport and Giles, Bulgaria, 2021-04-12"
+  adversarial: false
+
+- id: "q_008"
+  test_set: 2
+  answer_type: "short"
+  difficulty: "medium"
+  question: "What is the subscription date and email address for customer John Doe?"
+  answer: "Customer John Doe is not listed in the customer dataset."
+  ground_truth: "The provided superstore customer document does not contain any entry or record for a customer named John Doe."
+  article_refs: ["customers_list.csv"]
+  contexts:
+    - "The customer dataset contains 100 entries, but no individual named John Doe is present in the document."
+  adversarial: true
+
+- id: "q_009"
+  test_set: 2
+  answer_type: "medium"
+  difficulty: "easy"
+  question: "Which customer in the document is affiliated with the company 'Microsoft'?"
+  answer: "No customer in the document is affiliated with 'Microsoft'."
+  ground_truth: "The dataset does not contain any record of a customer working for or affiliated with Microsoft."
+  article_refs: ["customers_list.csv"]
+  contexts:
+    - "The customer list includes companies such as Rasmussen Group, Vega-Gentry, and Murillo-Perry, but Microsoft is not present."
+  adversarial: true
+
+- id: "q_010"
+  test_set: 2
+  answer_type: "long"
+  difficulty: "medium"
+  question: "Provide a summary of the first three customer entries in the dataset, including full names, companies, countries, and website URLs."
+  answer: "1. Sheryl Baxter: Rasmussen Group, Chile, http://www.stephenson.com/\n2. Preston Lozano: Vega-Gentry, Djibouti, http://www.hobbs.com/\n3. Roy Berry: Murillo-Perry, Antigua and Barbuda, http://www.lawrence.com/"
+  ground_truth: "Entry 1: Sheryl Baxter, Rasmussen Group, Chile, http://www.stephenson.com/. Entry 2: Preston Lozano, Vega-Gentry, Djibouti, http://www.hobbs.com/. Entry 3: Roy Berry, Murillo-Perry, Antigua and Barbuda, http://www.lawrence.com/."
+  article_refs: ["customers_list.csv", "Row 1", "Row 2", "Row 3"]
+  contexts:
+    - "Index: 1, Sheryl Baxter, Rasmussen Group, Chile, http://www.stephenson.com/"
+    - "Index: 2, Preston Lozano, Vega-Gentry, Djibouti, http://www.hobbs.com/"
+    - "Index: 3, Roy Berry, Murillo-Perry, Antigua and Barbuda, http://www.lawrence.com/"
+  adversarial: false

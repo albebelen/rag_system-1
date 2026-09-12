@@ -1,0 +1,48 @@
+- id: "q_001"
+  test_set: 1
+  answer_type: "short"
+  difficulty: "easy"
+  question: "What is the spectral type and visual magnitude (Vmag) of Proxima Centauri?"
+  answer: "Proxima Centauri (HIP 70890) has a visual magnitude (Vmag) of 11.01 and a spectral type of M5Ve."
+  ground_truth: "According to the dataset, Proxima Centauri (HIP 70890) is recorded with a Vmag of 11.01 and a Spectral Type of M5Ve."
+  article_refs: ["Nearest Stars Dataset", "Sheet1"]
+  contexts:
+    - "HIP: 70890, common name: Proxima Centauri, Vmag: 11.01, Abs Mag: 15.45, Distance (pc): 12948, B-V (mag): 1807.000, Spectral Type: M5Ve"
+  adversarial: false
+
+- id: "q_002"
+  test_set: 1
+  answer_type: "medium"
+  difficulty: "medium"
+  question: "Which star in the document has the lowest absolute magnitude (Abs Mag), and what are its recorded properties?"
+  answer: "Sirius A (HIP 32349) has the lowest absolute magnitude in the dataset at 1.45. Its visual magnitude (Vmag) is -1.44, distance is 26371 pc, B-V (mag) is 0.009, and its spectral type is A0m..."
+  ground_truth: "Sirius A (HIP 32349) features the lowest Abs Mag of 1.45, with Vmag -1.44, Distance (pc) 26371, B-V color index 0.009, and Spectral Type A0m..."
+  article_refs: ["Nearest Stars Dataset", "Sheet1"]
+  contexts:
+    - "HIP: 32349, common name: Sirius A, Vmag: -1.44, Abs Mag: 1.45, Distance (pc): 26371, B-V (mag): 0.009, Spectral Type: A0m..."
+  adversarial: false
+
+- id: "q_003"
+  test_set: 2
+  answer_type: "long"
+  difficulty: "hard"
+  question: "Compare the visual magnitude, absolute magnitude, distance, and spectral types of 61 Cygni A and 61 Cygni B based on the dataset."
+  answer: "61 Cygni A (HIP 104214) has a visual magnitude of 5.20, an absolute magnitude of 7.49, a distance of 34827 pc, a B-V of 1069.000, and a spectral type of K5V. In comparison, 61 Cygni B (HIP 104217) is fainter with a visual magnitude of 6.05, an absolute magnitude of 8.33, a distance of 35036 pc, a B-V of 1309.000, and a spectral type of K7V."
+  ground_truth: "61 Cygni A has HIP 104214, Vmag 5.20, Abs Mag 7.49, Distance 34827 pc, B-V 1069.000, Spectral Type K5V. 61 Cygni B has HIP 104217, Vmag 6.05, Abs Mag 8.33, Distance 35036 pc, B-V 1309.000, Spectral Type K7V."
+  article_refs: ["Nearest Stars Dataset", "Sheet1"]
+  contexts:
+    - "HIP: 104214, common name: 61 Cygni A, Vmag: 5.20, Abs Mag: 7.49, Distance (pc): 34827, B-V (mag): 1069.000, Spectral Type: K5V"
+    - "HIP: 104217, common name: 61 Cygni B, Vmag: 6.05, Abs Mag: 8.33, Distance (pc): 35036, B-V (mag): 1309.000, Spectral Type: K7V"
+  adversarial: false
+
+- id: "q_004"
+  test_set: 2
+  answer_type: "short"
+  difficulty: "medium"
+  question: "What is the recorded distance and spectral type for Polaris in the nearest stars document?"
+  answer: "Polaris is not listed in the document."
+  ground_truth: "The provided nearest stars document contains no entry or information regarding Polaris."
+  article_refs: ["Nearest Stars Dataset", "Sheet1"]
+  contexts:
+    - "The dataset covers 25 stars near Earth, such as Proxima Centauri, Barnard's Star, Sirius A, and Ross 154, but does not contain an entry for Polaris."
+  adversarial: true

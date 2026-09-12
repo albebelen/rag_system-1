@@ -39,12 +39,14 @@ from page_index.pageindex_retriever import retrieve_dataset as retrieve_pageinde
 files = [
     ("./test/CELEX_32006L0054_IT_TXT.pdf", "pi-cmn3q02a805ch0gpk1yqwpuri", 'ita', "./dataset/direttiva_2006_54_REAL_enriched.yaml"),
     ("./test/CELEX_32006L0054_EN_TXT.pdf", "pi-cmn3p5efs00nhlfpka5hmmlto", 'eng', "./dataset/direttiva_2006_54_REAL_enriched_EN.yaml"),
-    # ("./test/cross-ref/Kernel.pdf", "pi-cmn3q02a805ch0gpk1yqwpuri", 'eng', "./dataset/cross_referential_dataset.yaml"),
-    # ("./test/cross-ref/Page_fault.pdf", "pi-cmn3p5efs00nhlfpka5hfeato", 'eng', "./dataset/cross_referential_dataset.yaml"),
-    # ("./test/cross-ref/Operating_system.pdf", "pi-cmn3p5efs00nhlfpka5hmmlto", 'eng', "./dataset/cross_referential_dataset.yaml"),
-    ("./test/Strategia_italiana_per_l_Intelligenza_artificiale_2024-2026.pdf", "pi-cmt4jk4it01uh01p5tkbl7bgd", 'ita', "./dataset/agid.yaml"),
+    ("./test/cross-ref/Kernel.pdf", "pi-cmt5x1dyw020j01p5uth4sf2t", 'eng', "./dataset/cross_referential_dataset.yaml"),
+    ("./test/cross-ref/Page_fault.pdf", "pi-cmt5x9qq1020l01p5d0ulu1st", 'eng', "./dataset/cross_referential_dataset.yaml"),
+    ("./test/cross-ref/Operating_system.pdf", "pi-cmt5xaw9v020n01p5zrdfn04e", 'eng', "./dataset/cross_referential_dataset.yaml"),
+    ("./test/Strategia_italiana_per_l_Intelligenza_artificiale_2024-2026.pdf", "pi-cmtlzmyiq018y01nr5fiv6m99", 'ita', "./dataset/agid.yaml"),
     ("./test/Crime_and_Punishment_Critical_Analysis.pdf", "pi-cmt4jkih901ui01p5h5r17o3s", 'eng', "./dataset/linear_text.yaml"),
     ("./test/0 -Avviso Pubblico Pro.vi 2025.2026 sito-signed.pdf", "pi-cmt4jkwcs01uj01p5u7ltv20c", 'ita', "./dataset/avviso_pubblico.yaml"),
+    ("./test/data-driven/nearest_stars.xlsx", "pi-cmtde4fni00c801ns23wwb9jt", 'eng', "./dataset/data_driven_dataset.yaml"),
+    ("./test/data-driven/customers_list.csv", "pi-cmthhxedq010301nsfb7vm5vf", 'eng', "./dataset/customers_list_dataset.yaml"),
 ]
 
 # Metodi di chunking
@@ -74,9 +76,9 @@ embedding_iterator = create_default_embedding_model_iterator()
 
 def retrieve_chunking_dataset(
     experiment_name,
-    chunking_function, 
-    raw_text, 
-    is_eng, 
+    chunking_function,
+    raw_text,
+    is_eng,
     dataset,
     source_name,
     base_persist_dir="./chroma_eval_cache"
@@ -151,8 +153,8 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
         search_prompt = f"""
         Answer only based on provided context.
         Question: {dataset["question"][i]}
-        
-        Context: 
+
+        Context:
         {joined_context}
         """
         answer = answer_llm.invoke(search_prompt).text
@@ -164,7 +166,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
         async def evaluate_cp():
             try:
                 score = await ContextPrecision(llm=next(llm_iterator)).ascore(
-                    user_input=row["user_input"], 
+                    user_input=row["user_input"],
                     reference=row["reference"],
                     retrieved_contexts=row["retrieved_contexts"]
                 )
@@ -176,7 +178,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
         async def evaluate_cr():
             try:
                 score = await ContextRecall(llm=next(llm_iterator)).ascore(
-                    user_input=row["user_input"], 
+                    user_input=row["user_input"],
                     retrieved_contexts=row["retrieved_contexts"],
                     reference=row["reference"]
                 )
@@ -188,7 +190,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
         async def evaluate_cer():
             try:
                 score = await ContextEntityRecall(llm=next(llm_iterator)).ascore(
-                    reference=row["reference"], 
+                    reference=row["reference"],
                     retrieved_contexts=row["retrieved_contexts"]
                 )
                 return getattr(score, 'value', score)
@@ -245,7 +247,7 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
                 return None
 
         # Enqueue ALL metric evaluations for this row at the exact same time.
-        # The underlying LLM model impl is in charge of limiting request concurrency via a semaphore, 
+        # The underlying LLM model impl is in charge of limiting request concurrency via a semaphore,
         # so that Python can aggressively schedule everything without flooding Ollama/Gemini.
         cp_val, cr_val, cer_val, f_val, ns_val, ar_val, ac_val = await asyncio.gather(
             evaluate_cp(),
@@ -271,8 +273,8 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
 
     # Valutazione
     dataset_finale =  Dataset(
-        name=experiment_name, 
-        backend="local/csv", 
+        name=experiment_name,
+        backend="local/csv",
         root_dir=".",
         data=pd.DataFrame(dataset).to_dict(orient="records")
     )
@@ -292,14 +294,14 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
         f", answer_relevancy: {df['answer_relevancy'].mean()}"
         f", answer_correctness: {df['answer_correctness'].mean()}"
     )
-    
+
     return (
-            df['context_precision'].mean(), 
-            df['context_recall'].mean(), 
-            df['context_entity_recall'].mean(), 
-            df['faithfulness'].mean(), 
-            df['noise_sensitivity'].mean(), 
-            df['answer_relevancy'].mean(), 
+            df['context_precision'].mean(),
+            df['context_recall'].mean(),
+            df['context_entity_recall'].mean(),
+            df['faithfulness'].mean(),
+            df['noise_sensitivity'].mean(),
+            df['answer_relevancy'].mean(),
             df['answer_correctness'].mean()
     )
 
