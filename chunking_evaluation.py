@@ -142,8 +142,8 @@ async def evaluate_method(chunking_name, chunking_function, page_index_doc_ids, 
     else:
         dataset = retrieve_chunking_dataset(experiment_name, chunking_function, raw_text, is_eng, dataset, source_name)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"{timestamp}_{experiment_name}"
+    ts = timestamp.strftime("%Y%m%d_%H%M%S")
+    experiment_name = f"{ts}_{experiment_name}"
 
     # Lo usa solo la faithfulness:
     dataset["response"] = []
@@ -310,6 +310,7 @@ async def evaluate_file(file_name, page_index_doc_ids, is_eng, dataset_path, run
     raw_text = clean_doc(file_name, is_eng)
 
     golden_dataset = load_dataset(dataset_path)
+    timestamp = datetime.now()
 
     # Esegui benchmark
     table_data = []
