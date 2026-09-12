@@ -2,6 +2,10 @@ import logging
 from tqdm import tqdm
 import contextvars
 from contextlib import contextmanager, asynccontextmanager
+import warnings
+
+# Suppress Pydantic's internal serializer warning messages
+warnings.filterwarnings("ignore", message=".*Pydantic serializer warnings.*")
 
 # Module-level context storage (thread and async-safe)
 mdc_context = contextvars.ContextVar("mdc_context", default={})
