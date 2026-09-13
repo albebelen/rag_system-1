@@ -1,33 +1,37 @@
 import os
-import json
-from tqdm import tqdm
-from pageindex import PageIndexClient
-import pageindex.utils as utils
-from utils.model_factories import create_default_model
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
+from utils.my_log import logger
 
+class DocumentSearchResponse(BaseModel):
+    thinking: str = Field(description="Your thinking process on which nodes are relevant to the question")
+    node_list: list[str] = Field(description="List of relevant node IDs found in the tree")
 
-def _parse_tree_search_result(response):
-    response = response.strip()
-    if response.startswith("```"):
-        response = response.removeprefix("```").removeprefix("json").strip()
-        response = response.removesuffix("```").strip()
+prompt_template = ChatPromptTemplate.from_messages([
+    (
+        "system", 
+        "You are given a question and a tree structure of a document. "
+        "Each node contains a node id, node title, and a corresponding summary. "
+        "Your task is to find all nodes that are likely to contain the answer to the question."
+        "Keep your 'thinking' explanation brief and concise (under 3 sentences)."
+    ),
+    (
+        "human", 
+        "Question: {query}\n\n"
+        "Document tree structure:\n{tree_json}"
+    )
+])
 
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError:
-        start = response.find("{")
-        if start == -1:
-            raise
-        parsed, _ = json.JSONDecoder().raw_decode(response[start:])
-        return parsed
+def retrieve_dataset(doc_id, dataset):
+    from pageindex import PageIndexClient
+    from utils.model_factories import create_default_model
+    from tqdm import tqdm
 
-
-def retrieve_dataset(doc_ids, dataset):
     if "PAGE_INDEX_API_KEY" not in os.environ:
         raise "missing PAGE_INDEX_API_KEY"
    
     pi_client = PageIndexClient(api_key=os.environ.get("PAGE_INDEX_API_KEY"))
-    llm = create_default_model()
+    llm = create_default_model(max_tokens=2048)
 
     if isinstance(doc_ids, str):
         doc_ids = [doc_ids]
@@ -47,35 +51,61 @@ def retrieve_dataset(doc_ids, dataset):
     return dataset
 
 def retrieve(tree, llm, query):
+    import json
+    import logging
+    import pageindex.utils as utils
+    from langchain_core.messages import HumanMessage, AIMessage
+    from langchain_core.exceptions import OutputParserException
+    from pydantic import ValidationError
+
     tree_without_text = utils.remove_fields(tree.copy(), fields=['text'])
-
-    search_prompt = f"""
-    You are given a question and a tree structure of a document.
-    Each node contains a node id, node title, and a corresponding summary.
-    Your task is to find all nodes that are likely to contain the answer to the question.
-
-    Question: {query}
-
-    Document tree structure:
-    {json.dumps(tree_without_text, indent=2)}
-
-    Please reply in the following JSON format:
-    {{
-        "thinking": "<Your thinking process on which nodes are relevant to the question>",
-        "node_list": ["node_id_1", "node_id_2", ..., "node_id_n"]
-    }}
-    Directly return the final JSON structure. Do not output anything else.
-    """
-
-    tree_search_result = llm.invoke(search_prompt).text
-    try:
-        result = _parse_tree_search_result(tree_search_result)
-        node_list = result["node_list"]
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        preview = tree_search_result[:200].replace("\n", " ")
-        raise ValueError(f"Invalid PageIndex retrieval response: {preview!r}") from exc
-
+    tree_json_str = json.dumps(tree_without_text, indent=2)
     node_map = utils.create_node_mapping(tree)
-    return "\n\n".join(
-        node_map[node_id]["text"] for node_id in node_list if node_id in node_map
-    )
+
+    structured_llm = llm.with_structured_output(DocumentSearchResponse)
+
+    messages = prompt_template.invoke({
+        "query": query, 
+        "tree_json": tree_json_str
+    }).to_messages()
+
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        is_last_attempt = attempt == max_attempts - 1
+
+        try:
+            response: DocumentSearchResponse = structured_llm.invoke(messages)
+        except (ValidationError, OutputParserException) as e:
+            if is_last_attempt:
+                logging.error(f"Schema validation failed after {max_attempts} attempts: {e}")
+                raise e
+            # Extract the raw output if OutputParserException captured it
+            raw_content = getattr(e, "llm_output", None) or getattr(e, "observation", None)
+            messages.append(AIMessage(content=str(raw_content) if raw_content else "[Invalid JSON / Schema Output]"))
+            messages.append(HumanMessage(
+                content=f"Your previous response failed JSON/schema validation with this error:\n{e}\n"
+                        f"Please correct your response to strictly match the requested JSON schema."
+            ))
+            continue
+
+        resolved_texts = []
+        invalid_ids = []
+            
+        for node_id in response.node_list:
+            if node_id in node_map:
+                resolved_texts.append(node_map[node_id]["text"])
+            else:
+                invalid_ids.append(node_id)
+        
+        if invalid_ids and not is_last_attempt:
+            messages.append(AIMessage(content=response.model_dump_json(indent=2)))
+            messages.append(HumanMessage(
+                content=f"The node IDs {invalid_ids} do not exist in the document tree. "
+                        f"Please review the tree structure and return only valid node IDs."
+            ))
+            continue
+            
+        if invalid_ids:
+            logging.warning(f"Model returned some invalid node IDs {invalid_ids}, which could not be found in the tree node map. Ignoring.")
+                
+        return "\n\n".join(resolved_texts)
